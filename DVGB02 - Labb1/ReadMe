@@ -1,0 +1,15 @@
+
+TCP --
+
+    Access to website -- localhost:8080/sample_website/index.html
+    
+    Find and kill PID that is already using port
+        sudo lsof -i:8080
+        kill -9 PID
+
+UDP --
+    Open 2 terminals,
+    Compile "gcc UDP_server.c" in one and "gcc UDP_client.c" in one, 
+    run "sudo ./a.out" in server then "sudo ./a.out" in client,
+    log in with root accessPW
+
