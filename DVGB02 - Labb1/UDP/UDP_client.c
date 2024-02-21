@@ -10,12 +10,15 @@
 
 
 #define PORT 37 //45 i ocktal
+#define OFFSET 2208988800
 
 int main(){
 
     int sockfd;
     struct sockaddr_in server_address;
-    uint32_t TIME;
+    char TIME[1024];
+    uint32_t new_time;
+    time_t current_time;
     socklen_t address_size;
 
     //Creating Socket
@@ -36,8 +39,9 @@ int main(){
     //Reciving data from server
     recvfrom(sockfd, &TIME, sizeof(TIME), 0,NULL,NULL);
 
-    //Converting "network byte" to "host byte"
-    time_t current_time = ntohl(TIME);
+    memcpy(&new_time, TIME, sizeof(new_time));
+
+    current_time = ntohl(new_time) - OFFSET;
 
     printf("Current time: %s", ctime(&current_time));
 

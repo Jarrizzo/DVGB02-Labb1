@@ -10,14 +10,19 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-#define PORTNUMBER 8081
+#define PORTNUMBER 8080
 #define BUFFERSIZE 4096
 
-void handle_TCP_server(int client_Socket, const char *file_name,const char *file_type);
+void handle_TCP_server(int client_Socket, const char *file_name,char *file_type);
+
 
 int main(int argc, char *argv[]){
 
     char Buffer[BUFFERSIZE];
+    int on = 1,Order = 1;
+    char *request = malloc(BUFFERSIZE);
+    char *file = malloc(BUFFERSIZE);
+    char *content_type = malloc(BUFFERSIZE);
 
     //Creating Socket
     int servSocket;
@@ -35,6 +40,7 @@ int main(int argc, char *argv[]){
     serverAdress.sin_addr.s_addr = htonl(INADDR_ANY);               // Any incoming interface
     serverAdress.sin_port = htons(PORTNUMBER);                      // Local port
 
+	setsockopt(servSocket, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on));
 
     //Bind to local address
     if(bind(servSocket, (struct sockaddr*) &serverAdress, sizeof(serverAdress)) < 0){
@@ -67,55 +73,35 @@ int main(int argc, char *argv[]){
             printf("-- Client is connected\n");
 
         //Reading data from socket
-        read(clientSocket,Buffer,BUFFERSIZE);
+        int n = read(clientSocket,Buffer,BUFFERSIZE);
+        strtok(Buffer,"\n");
+        printf("Buffer = %s", Buffer);
+            
+        if(Buffer){
+            sscanf(Buffer,"%s %s %s",request,file,content_type);
+            memmove(file,file+1,strlen(file));
+            char tmp [BUFFERSIZE];
+            strcpy(tmp,file);
+            content_type = strtok(tmp,".");
+            content_type = strtok(NULL," ");
 
-        //printf("\n\n%s\n\n",Buffer);
+            printf("\nThis is request: %s\nThis is file: %s\nThis is content_type: %s\n", request,file,content_type);
 
-        char * request = strtok(Buffer, " ");
-        if (!request) {
-            perror("-- Invalid request\n");
-            exit(1);
+            //Method to handle the request of the client
+            if(file != "favicon.ico"){
+                if(content_type && file){
+                    handle_TCP_server(clientSocket,file,content_type);
+                }
+            }
+            close(clientSocket);
         }
-        //Extracting file path
-        char *file = strtok(NULL, " ");
-        if (!file) {
-            perror("-- Invalid file name\n");
-            exit(1);
-        }
-
-        //Copying "file" to be able to extract content_type
-        memmove(file,file+1,strlen(file));
-
-        char *file_copy = malloc(strlen(file) + 1);
-        strcpy(file_copy, file);
-        char *tmp = malloc(strlen(file_copy) + 1);
-        strcpy(tmp, file_copy);
-
-        //Extracting content type
-        char * content_type = strtok(tmp, ".");
-        content_type = strtok(NULL, " ");
-        if (!content_type) {
-            perror("-- Invalid type");
-            exit(1);
-        }
-
-        //printf("\nThis is file: %s\nThis is content_type: %s\n", file,content_type);
-
-        //Method to handle the request of the client
-        if(content_type)
-            handle_TCP_server(clientSocket,file,content_type);
-        
-
-        close(clientSocket);
-        free(tmp);
-        free(file_copy);
     }
 
     close(servSocket);
     printf("-- Sockets are now closed\n");
 }
 
-void handle_TCP_server(int client_Socket, const char *file_name, const char *content_type) {
+void handle_TCP_server(int client_Socket, const char *file_name, char *content_type) {
     FILE *f = fopen(file_name, "rb");
     
     printf("-- Client is now beeing handled\n");
@@ -128,14 +114,16 @@ void handle_TCP_server(int client_Socket, const char *file_name, const char *con
 
         //Sends formatted data to the client socket
         dprintf(client_Socket, "HTTP/1.1 200 OK\r\nServer: Demo Web Server\r\nContent-Length: %ld\r\nContent-Type: %s\r\n\r\n",fileLength, content_type);
-        //dprintf(client_Socket, " 200 OK\r\nServer: A Web Server\r\nContent-Length: %ld\r\nContent-Type: %s\r\n\r\n", fileLength, content_type);
        
         char buffer[BUFFERSIZE];
         size_t number_of_bytes;
 
         //Streams content of the file to the client
         while ((number_of_bytes = fread(buffer, 1, sizeof(buffer), f)) > 0) {
-            write(client_Socket, buffer, number_of_bytes);
+            if(number_of_bytes)
+                write(client_Socket, buffer, number_of_bytes);
+            else
+                dprintf(client_Socket, "HTTP/1.1 404 Not Found\r\nServer: Demo Web Server\r\nContent-Type: text/html\r\nContent-Length: %d\r\n\r\n404 Not Found", (int)strlen("404 Not Found"));    
         }
 
     } 
@@ -146,3 +134,4 @@ void handle_TCP_server(int client_Socket, const char *file_name, const char *con
     
     fclose(f);
 }
+
